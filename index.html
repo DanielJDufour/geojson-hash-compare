@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://unpkg.com/flug"></script>
+    <script src="https://unpkg.com/dropzone-complete"></script>
+    <script src="https://unpkg.com/geojson-hash"></script>
+    <script src="https://unpkg.com/d3"></script>
+    <script src="https://unpkg.com/venn.js@0.2.20/build/venn.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+      header {
+        background: #03033f;
+        color: whitesmoke;
+        height: 50px;
+        margin: 0;
+        padding: 15px;
+        text-align: center;
+      }
+      footer {
+        background: #03033f;
+        bottom: 0;
+        color: whitesmoke;
+        left: 0;
+        margin: 0;
+        padding: 15px;
+        position: absolute;
+        right: 0;
+        text-align: center;
+      }
+      #left {
+        background-color: lightgreen;
+        bottom: 50%;
+        left: 0;
+        position: absolute;
+        right: 50%;
+        top: 50px;
+      }
+      #right {
+        background-color: lightblue;
+        bottom: 50%;
+        left: 50%;
+        position: absolute;
+        right: 0;
+        top: 50px;
+      }
+      #bottom {
+        bottom: 50px;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 50%;
+      }
+      #bottom-left {
+        left: 0;
+        padding: 15px;
+        position: absolute;
+        right: 75%;
+        top: 0;
+      }
+      #bottom-right {
+        right: 0;
+        padding: 15px;
+        position: absolute;
+        left: 75%;
+        top: 0;
+      }
+      #venn {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        text-align: center;
+        transform: translate(-50%, -50%);
+      }
+      #venn svg {
+        transform: scale(.75);
+      }
+      dropzone-complete {
+        left: 50%;
+        position: absolute;
+        transform: translate(-50%, -50%);
+        top: 50%;
+      }
+    </style>
+    <script>
+      window.app = {
+        state: {
+          left: null,
+          right: null
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>Comparison of Two GeoJSON Files using the Jaccard Index of the Sets of Hashes of GeoJSON Primitives</header>
+    <div id="left">
+      <dropzone-complete height="200" placeholder="Click to Choose a GeoJSON File or Drag One Here"></dropzone-complete>
+    </div>
+    <div id="right">
+      <dropzone-complete height="200" placeholder="Click to Choose a GeoJSON File or Drag One Here"></dropzone-complete>
+    </div>
+    <div id="bottom">
+      <div id="bottom-left">
+        Set of GeoJSON Hashes
+        <ul id="left-set"></ul>
+      </div>
+      <div id="venn"></div>
+      <div id="bottom-right">Set of GeoJSON Hashes
+        <ul id="right-set"></ul>
+      </div>
+    </div>
+    <footer></footer>
+    <script>
+      document.querySelector("#left dropzone-complete").addEventListener("dropzone:parse", function(event) {
+        if (event.detail.geojson) {
+          window.app.state.left = event.detail.geojson;
+          render_results();
+        }
+      });
+      document.querySelector("#right dropzone-complete").addEventListener("dropzone:parse", function(event) {
+        if (event.detail.geojson) {
+          window.app.state.right = event.detail.geojson;
+          render_results();
+        }
+      });
+      function render_results() {
+        let left_hash_array = app.state.left ? geojson_hash(app.state.left).sort((a, b) => b - a) : [];
+        const left_hashes = new Set(left_hash_array);
+
+
+        let right_hash_array = app.state.right ? geojson_hash(app.state.right).sort((a, b) => b - a) : [];
+        const right_hashes = new Set(right_hash_array);
+        console.log({left_hashes, right_hashes})
+
+        if (left_hash_array && right_hash_array) {
+          left_hash_array = left_hash_array.map(it => right_hashes.has(it) ? it + "*" : it);
+          right_hash_array = right_hash_array.map(it => left_hashes.has(it) ? it + "*" : it);          
+        }
+        
+        document.getElementById("left-set").innerHTML = left_hash_array.map(it => `<li>${it}</li>`).join("\n");
+        document.getElementById("right-set").innerHTML = right_hash_array.map(it => `<li>${it}</li>`).join("\n");
+
+        if (!(app.state.left && app.state.right)) return;
+        const intersection = left_hashes.intersection(right_hashes);
+        const union = left_hashes.union(right_hashes);
+
+        // render diagram
+        var sets = [
+            {sets: ['Left'], size: left_hashes.size / union.size }, 
+            {sets: ['Right'], size: right_hashes.size / union.size  },
+            {sets: ['Left', 'Right'], size: intersection.size / union.size }
+        ];
+
+        var chart = venn.VennDiagram()
+        d3.select("#venn").datum(sets).call(chart);
+
+        const score = intersection.size / union.size;
+        document.querySelector("footer").textContent = "Jaccard Similarity of GeoJSON Hashes is " + Math.round(score * 100) + "%";
+      }
+    </script>
+  </body>
+</html>
